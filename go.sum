@@ -1,0 +1,4 @@
+github.com/google/uuid v1.3.0 h1:t6JiXgmwXMjEs8VusXIJk2BXHsn+wx8BZdTaoZ5fu7I=
+github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/mistifyio/go-zfs v2.1.2-0.20210521130936-d3ead99562a8+incompatible h1:mY7AL1pVsDf0SmbKwfiJ/Rs5KiyBarTGfb2jynATR94=
+github.com/mistifyio/go-zfs v2.1.2-0.20210521130936-d3ead99562a8+incompatible/go.mod h1:8AuVvqP/mXw1px98n46wfvcGfQ4ci2FwoAjKYxuo3Z4=
