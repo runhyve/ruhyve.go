@@ -62,17 +62,17 @@ type Machine struct {
 	autostart string
 }
 
-func vm_boot_volume_path(name string) string {
+func vmBootVolumePath(name string) string {
 	return "/dev/zvol/" + dataset + "/" + name + "/" + "disk0"
 }
 
-func vm_dataset(name string) string {
+func vmDataset(name string) string {
 	return dataset + "/" + name
 }
 
-func get_vm_property(name string, property string) (string, error) {
-	vm_dataset := vm_dataset(name)
-	fs, _ := zfs.GetDataset(vm_dataset)
+func getVmProperty(name string, property string) (string, error) {
+	vmDataset := vmDataset(name)
+	fs, _ := zfs.GetDataset(vmDataset)
 	property, err := fs.GetProperty("runhyve:vm:" + property)
 
 	if err != nil {
@@ -81,21 +81,21 @@ func get_vm_property(name string, property string) (string, error) {
 
 	return property, nil
 }
-func vm_load(name string) (*Machine, error) {
-	vm_name, err := get_vm_property(name, "name")
+func vmLoad(name string) (*Machine, error) {
+	vmName, err := getVmProperty(name, "name")
 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't load VM %s configuration", name)
 	}
 
-	ncpu, _ := get_vm_property(name, "ncpu")
-	memory, _ := get_vm_property(name, "memory")
-	loader, _ := get_vm_property(name, "loader")
-	uuid, _ := get_vm_property(name, "uuid")
-	autostart, _ := get_vm_property(name, "autostart")
+	ncpu, _ := getVmProperty(name, "ncpu")
+	memory, _ := getVmProperty(name, "memory")
+	loader, _ := getVmProperty(name, "loader")
+	uuid, _ := getVmProperty(name, "uuid")
+	autostart, _ := getVmProperty(name, "autostart")
 
 	return &Machine{
-		name:      vm_name,
+		name:      vmName,
 		ncpu:      ncpu,
 		memory:    memory,
 		loader:    loader,
@@ -112,62 +112,62 @@ func list() ([]*zfs.Dataset, error) {
 
 	fmt.Println("NAME CPUs MEMORY LOADER")
 	for _, fs := range datasets {
-		vm_name, err := fs.GetProperty("runhyve:vm:name")
+		vmName, err := fs.GetProperty("runhyve:vm:name")
 
-		if err == nil && vm_name != "-" {
+		if err == nil && vmName != "-" {
 			ncpu, _ := fs.GetProperty("runhyve:vm:ncpu")
 			memory, _ := fs.GetProperty("runhyve:vm:memory")
 			loader, _ := fs.GetProperty("runhyve:vm:loader")
-			fmt.Printf("%s %s %s %s\n", vm_name, ncpu, memory, loader)
+			fmt.Printf("%s %s %s %s\n", vmName, ncpu, memory, loader)
 		}
 	}
 
 	return datasets, nil
 }
 
-func create(name string, volume_size uint64, ncpu int, memory int) (*Machine, error) {
-	vm_dataset := dataset + "/" + name
-	vol_name := vm_boot_volume_path(name)
+func create(name string, volumeSize uint64, ncpu int, memory int) (*Machine, error) {
+	vmDataset := dataset + "/" + name
+	volName := vmBootVolumePath(name)
 
-	zfs_props := map[string]string{
+	zfsProps := map[string]string{
 		"runhyve:vm:name":          name,
 		"runhyve:vm:uuid":          uuid.NewString(),
 		"runhyve:vm:loader":        "bhyveload",
 		"runhyve:vm:autostart":     "on",
 		"runhyve:vm:ncpu":          string(ncpu),
 		"runhyve:vm:memory":        string(memory),
-		"runhyve:vm:volumes:disk0": strconv.FormatUint(volume_size, 10),
+		"runhyve:vm:volumes:disk0": strconv.FormatUint(volumeSize, 10),
 	}
 
-	_, err := zfs.CreateFilesystem(vm_dataset, zfs_props)
+	_, err := zfs.CreateFilesystem(vmDataset, zfsProps)
 
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create dataset %s: %s", vm_dataset, err)
+		return nil, fmt.Errorf("couldn't create dataset %s: %s", vmDataset, err)
 	}
 	// TODO: create sparse volume, seems it is not supported by go-zfs: https://github.com/mistifyio/go-zfs/issues/77
-	_, err = zfs.CreateVolume(vol_name, volume_size, map[string]string{"volmode": "dev"})
+	_, err = zfs.CreateVolume(volName, volumeSize, map[string]string{"volmode": "dev"})
 
 	if err != nil {
-		return nil, fmt.Errorf("couldn't create volume %s: %s", vol_name, err)
+		return nil, fmt.Errorf("couldn't create volume %s: %s", volName, err)
 	}
 
-	volume_path := "/dev/zvol/" + vol_name
-	image_path := "/home/kwiat/Development/runhyve/runhyve-cli/debian-10-openstack-amd64.qcow2"
+	volumePath := "/dev/zvol/" + volName
+	imagePath := "/home/kwiat/Development/runhyve/runhyve-cli/debian-10-openstack-amd64.qcow2"
 
-	err = write_image(image_path, volume_path)
+	err = writeImage(imagePath, volumePath)
 
 	if err != nil {
-		return nil, fmt.Errorf("couldn't write volume %s with image %s: %s", image_path, volume_path, err)
+		return nil, fmt.Errorf("couldn't write volume %s with image %s: %s", imagePath, volumePath, err)
 	}
 
-	machine, err := vm_load(name)
+	machine, err := vmLoad(name)
 	fmt.Printf("[Info] Created volume for VM %s\n", name)
 
 	return machine, nil
 }
 
 func start(name string) error {
-	machine, err := vm_load(name)
+	machine, err := vmLoad(name)
 
 	if err != nil {
 		return err
@@ -185,7 +185,7 @@ func start(name string) error {
 		"-U", machine.uuid,
 		"-s", "0,hostbridge",
 		"-s", "31,lpc",
-		"-s", "4:0,virtio-blk," + vm_boot_volume_path(name),
+		"-s", "4:0,virtio-blk," + vmBootVolumePath(name),
 		"-l", "com1,/dev/nmdm-" + name + ".1A",
 		name}
 	fmt.Printf("[Info] Starting vm %s: %s %s\n", name, command, strings.Join(args, " "))
@@ -200,10 +200,10 @@ func start(name string) error {
 	return nil
 }
 
-func write_image(image_path string, volume_path string) error {
-	fmt.Printf("[Info] Writing image %s to volume %s... \n", image_path, volume_path)
+func writeImage(imagePath string, volumePath string) error {
+	fmt.Printf("[Info] Writing image %s to volume %s... \n", imagePath, volumePath)
 	command := "qemu-img"
-	cmd := exec.Command(command, "dd", "-O", "raw", "if="+image_path, "of="+volume_path, "bs=1M")
+	cmd := exec.Command(command, "dd", "-O", "raw", "if="+imagePath, "of="+volumePath, "bs=1M")
 	stdout, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -214,12 +214,12 @@ func write_image(image_path string, volume_path string) error {
 }
 
 func destroy(name string) error {
-	vm_dataset := dataset + "/" + name
+	vmDataset := dataset + "/" + name
 
-	ds, err := zfs.GetDataset(vm_dataset)
+	ds, err := zfs.GetDataset(vmDataset)
 
 	if err != nil {
-		return fmt.Errorf("couln't open dataset %s: %s", vm_dataset, err)
+		return fmt.Errorf("couln't open dataset %s: %s", vmDataset, err)
 	}
 
 	fmt.Printf("[Info] Destroying VM %s\n", name)
